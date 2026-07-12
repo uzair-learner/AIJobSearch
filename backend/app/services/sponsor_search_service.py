@@ -43,7 +43,7 @@ class SponsorSearchService:
 
         if request.searchText:
             term = request.searchText.lower()
-            query = query.join(Employer.perm_cases).outerjoin(PermCase.occupation).where(
+            query = query.outerjoin(PermCase.occupation).where(
                 Employer.display_name.ilike(f"%{term}%")
                 | Employer.normalized_name.ilike(f"%{term.upper()}%")
                 | PermCase.job_title.ilike(f"%{term}%")
