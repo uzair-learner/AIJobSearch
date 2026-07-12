@@ -17,6 +17,7 @@ class SponsorSearchRequest(BaseModel):
     pageSize: int = 25
     sortBy: str = "recent_filings"
     sortDirection: Literal["asc", "desc"] = "desc"
+    resultView: Literal["employers", "filings"] = "employers"
 
     @model_validator(mode="after")
     def ensure_any_filter(self) -> "SponsorSearchRequest":
@@ -62,6 +63,22 @@ class PaginationResponse(BaseModel):
     totalPages: int
 
 
+class MatchingFilingItem(BaseModel):
+    caseNumber: str
+    jobTitle: str | None
+    socCode: str | None
+    occupation: str | None
+    fiscalYear: int
+    caseStatus: str
+    filingDate: str | None
+    decisionDate: str | None
+    worksiteCity: str | None
+    worksiteState: str | None
+    offeredWage: float | None
+    wageUnit: str | None
+    source: str | None
+
+
 class SearchResultItem(BaseModel):
     employerId: int
     employerName: str
@@ -91,10 +108,32 @@ class SearchResultItem(BaseModel):
     sponsorshipScore: int
     sponsorshipReasons: list[str]
     dataLimitations: list[str]
+    matchingFilings: list[MatchingFilingItem] = Field(default_factory=list)
+
+
+class FilingSearchResultItem(BaseModel):
+    employerId: int
+    employerName: str
+    caseNumber: str
+    jobTitle: str | None
+    socCode: str | None
+    occupation: str | None
+    fiscalYear: int
+    caseStatus: str
+    filingDate: str | None
+    decisionDate: str | None
+    worksiteCity: str | None
+    worksiteState: str | None
+    offeredWage: float | None
+    wageUnit: str | None
+    source: str | None
 
 
 class SponsorSearchResponse(PaginationResponse):
-    results: list[SearchResultItem]
+    resultView: Literal["employers", "filings"]
+    totalMatchingEmployers: int
+    totalMatchingPermCases: int
+    results: list[SearchResultItem | FilingSearchResultItem]
     generatedAt: datetime
 
 

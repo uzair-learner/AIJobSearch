@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import SearchForm from "../components/SearchForm";
+import SponsorFilingTable from "../components/SponsorFilingTable";
 import SponsorTable from "../components/SponsorTable";
 import SponsorCard from "../components/SponsorCard";
 import Pagination from "../components/Pagination";
@@ -11,7 +12,7 @@ import DataFreshnessBanner from "../components/DataFreshnessBanner";
 import { apiGet } from "../api/client";
 import { getCaseStatuses, getDataFreshness, getFiscalYears, getProfessions, getStates } from "../api/metadataApi";
 import { searchSponsors } from "../api/sponsorApi";
-import type { DatabaseSummary, SponsorSearchRequest } from "../types/sponsor";
+import type { DatabaseSummary, FilingSearchItem, SponsorSearchItem, SponsorSearchRequest } from "../types/sponsor";
 
 const initialValues: SponsorSearchRequest = {
   searchText: "",
@@ -26,6 +27,7 @@ const initialValues: SponsorSearchRequest = {
   pageSize: 10,
   sortBy: "recent_filings",
   sortDirection: "desc",
+  resultView: "employers",
 };
 
 const syntheticSuggestions = ["Software Developers", "Data Scientists", "Information Security Analysts", "Northwind", "Contoso", "Fabrikam", "WA", "TX", "CA"];
@@ -66,6 +68,8 @@ export default function SponsorSearchPage() {
   });
 
   const results = searchQuery.data?.results ?? [];
+  const employerResults = (searchQuery.data?.resultView === "employers" ? results : []) as SponsorSearchItem[];
+  const filingResults = (searchQuery.data?.resultView === "filings" ? results : []) as FilingSearchItem[];
   const activeChips = useMemo(() => {
     const chips = [];
     if (submittedFilters?.searchText) chips.push(`Search: ${submittedFilters.searchText}`);
@@ -75,6 +79,13 @@ export default function SponsorSearchPage() {
     if (submittedFilters) chips.push(`Min filings: ${submittedFilters.minimumFilings}`);
     return chips;
   }, [submittedFilters]);
+
+  const resultSummary = useMemo(() => {
+    if (!searchQuery.data) return null;
+    const employerLabel = searchQuery.data.totalMatchingEmployers === 1 ? "employer" : "employers";
+    const filingLabel = searchQuery.data.totalMatchingPermCases === 1 ? "PERM case" : "PERM cases";
+    return `${searchQuery.data.totalMatchingEmployers} ${employerLabel} matched, ${searchQuery.data.totalMatchingPermCases} ${filingLabel} aggregated`;
+  }, [searchQuery.data]);
 
   function submitFilters(values: SponsorSearchRequest) {
     const next = {
@@ -111,6 +122,11 @@ export default function SponsorSearchPage() {
     setValidationMessage("");
   }
 
+  function setResultView(resultView: "employers" | "filings") {
+    setFormFilters((current) => ({ ...current, resultView }));
+    setSubmittedFilters((current) => (current ? { ...current, resultView, page: 1 } : current));
+  }
+
   return (
     <section className="page">
       <header className="page-header">
@@ -122,13 +138,27 @@ export default function SponsorSearchPage() {
           <button className={view === "table" ? "active" : ""} onClick={() => setView("table")}>
             Table
           </button>
-          <button className={view === "cards" ? "active" : ""} onClick={() => setView("cards")}>
+          <button
+            className={view === "cards" && formFilters.resultView === "employers" ? "active" : ""}
+            onClick={() => setView("cards")}
+            disabled={formFilters.resultView === "filings"}
+          >
             Cards
           </button>
         </div>
       </header>
 
       <DataFreshnessBanner {...freshnessQuery.data} />
+
+      {databaseSummaryQuery.data?.demoSeedEnabled ? (
+        <section className="panel muted">Demo mode: only synthetic sample employers are available.</section>
+      ) : null}
+
+      {databaseSummaryQuery.data && !databaseSummaryQuery.data.officialPermDataImported ? (
+        <section className="panel muted">
+          Import official DOL PERM data to retrieve broader employer results. <Link to="/admin/imports">Open Imports</Link>
+        </section>
+      ) : null}
 
       {fiscalYearsQuery.isLoading || professionsQuery.isLoading || statesQuery.isLoading || statusesQuery.isLoading ? (
         <LoadingState label="Loading metadata..." />
@@ -201,11 +231,30 @@ export default function SponsorSearchPage() {
 
       {!searchQuery.isLoading && !searchQuery.isError && results.length > 0 ? (
         <>
-          {view === "table" ? (
-            <SponsorTable sponsors={results} />
+          <section className="panel">
+            <div className="chip-row">
+              <strong>{resultSummary}</strong>
+            </div>
+            <div className="view-toggle">
+              <button
+                className={formFilters.resultView === "employers" ? "active" : ""}
+                onClick={() => setResultView("employers")}
+              >
+                Employer view
+              </button>
+              <button
+                className={formFilters.resultView === "filings" ? "active" : ""}
+                onClick={() => setResultView("filings")}
+              >
+                Filing view
+              </button>
+            </div>
+          </section>
+          {searchQuery.data?.resultView === "filings" || view === "table" ? (
+            searchQuery.data?.resultView === "filings" ? <SponsorFilingTable filings={filingResults} /> : <SponsorTable sponsors={employerResults} />
           ) : (
             <div className="card-grid">
-              {results.map((sponsor) => (
+              {employerResults.map((sponsor) => (
                 <SponsorCard key={sponsor.employerId} sponsor={sponsor} />
               ))}
             </div>

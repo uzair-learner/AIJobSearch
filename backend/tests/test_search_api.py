@@ -63,8 +63,20 @@ def test_partially_seeded_database_is_repaired(session):
 
 
 def test_search_software_returns_northwind(seeded_session):
-    results = _search(SponsorSearchService(), seeded_session, searchText="software").results
+    response = _search(SponsorSearchService(), seeded_session, searchText="software")
+    results = response.results
     assert results[0].employerName == "Northwind Cloud"
+    assert response.totalMatchingEmployers == 1
+    assert response.totalMatchingPermCases == 2
+
+
+def test_search_software_returns_two_matching_filings(seeded_session):
+    response = _search(SponsorSearchService(), seeded_session, searchText="software", resultView="filings")
+    assert response.resultView == "filings"
+    assert response.totalMatchingEmployers == 1
+    assert response.totalMatchingPermCases == 2
+    assert len(response.results) == 2
+    assert {item.caseNumber for item in response.results} == {"DEMO-2024-0001", "DEMO-2025-0002"}
 
 
 def test_search_software_developers_returns_northwind(seeded_session):
@@ -138,6 +150,16 @@ def test_case_level_matching_aggregates_only_matching_cases(seeded_session):
 def test_employer_name_matching_aggregates_all_filtered_cases(seeded_session):
     results = _search(SponsorSearchService(), seeded_session, searchText="Northwind").results
     assert results[0].numberOfPermFilings == 2
+
+
+def test_employer_view_includes_separate_matching_filings(seeded_session):
+    response = _search(SponsorSearchService(), seeded_session, searchText="software", resultView="employers")
+    assert response.resultView == "employers"
+    assert len(response.results) == 1
+    employer = response.results[0]
+    assert employer.numberOfPermFilings == 2
+    assert len(employer.matchingFilings) == 2
+    assert employer.matchingFilings[0].caseNumber != employer.matchingFilings[1].caseNumber
 
 
 def test_database_summary_endpoint_counts_and_safety(client):

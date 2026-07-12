@@ -14,14 +14,19 @@ def get_database_summary(db: Session) -> dict:
         .where(Occupation.is_it_profession.is_(True))
         .order_by(Occupation.soc_title.asc())
     ).all()
+    imports = db.execute(select(DataImport.file_name, DataImport.status)).all()
+    official_perm_data_imported = any(
+        status == "completed" and "synthetic_demo" not in (file_name or "").lower() for file_name, status in imports
+    )
     return {
         "databaseType": "sqlite" if settings.database_url.startswith("sqlite") else "postgresql",
         "demoSeedEnabled": settings.enable_demo_seed,
+        "officialPermDataImported": official_perm_data_imported,
         "employers": db.scalar(select(func.count()).select_from(Employer)) or 0,
         "occupations": db.scalar(select(func.count()).select_from(Occupation)) or 0,
         "permCases": db.scalar(select(func.count()).select_from(PermCase)) or 0,
         "currentJobs": db.scalar(select(func.count()).select_from(CurrentJob)) or 0,
-        "imports": db.scalar(select(func.count()).select_from(DataImport)) or 0,
+        "imports": len(imports),
         "availableFiscalYears": [year for year in fiscal_years if year is not None],
         "availableStates": [state for state in states if state],
         "availableOccupations": [{"socCode": soc_code, "socTitle": soc_title} for soc_code, soc_title in occupations],

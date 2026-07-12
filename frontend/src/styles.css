@@ -309,6 +309,22 @@ td {
   background: #b77d34;
 }
 
+.view-toggle button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.link-button {
+  background: transparent;
+  color: var(--accent);
+  padding: 0;
+  border-radius: 0;
+}
+
+.nested-table-wrap {
+  padding: 0.25rem 0 0.5rem;
+}
+
 .muted {
   color: var(--muted);
 }

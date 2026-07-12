@@ -11,11 +11,13 @@ export interface SponsorSearchRequest {
   pageSize: number;
   sortBy: string;
   sortDirection: "asc" | "desc";
+  resultView: "employers" | "filings";
 }
 
 export interface DatabaseSummary {
   databaseType: string;
   demoSeedEnabled: boolean;
+  officialPermDataImported: boolean;
   employers: number;
   occupations: number;
   permCases: number;
@@ -24,6 +26,22 @@ export interface DatabaseSummary {
   availableFiscalYears: number[];
   availableStates: string[];
   availableOccupations: Array<{ socCode: string; socTitle: string }>;
+}
+
+export interface MatchingFilingItem {
+  caseNumber: string;
+  jobTitle: string | null;
+  socCode: string | null;
+  occupation: string | null;
+  fiscalYear: number;
+  caseStatus: string;
+  filingDate: string | null;
+  decisionDate: string | null;
+  worksiteCity: string | null;
+  worksiteState: string | null;
+  offeredWage: number | null;
+  wageUnit: string | null;
+  source: string | null;
 }
 
 export interface SponsorSearchItem {
@@ -55,6 +73,25 @@ export interface SponsorSearchItem {
   sponsorshipScore: number;
   sponsorshipReasons: string[];
   dataLimitations: string[];
+  matchingFilings: MatchingFilingItem[];
+}
+
+export interface FilingSearchItem {
+  employerId: number;
+  employerName: string;
+  caseNumber: string;
+  jobTitle: string | null;
+  socCode: string | null;
+  occupation: string | null;
+  fiscalYear: number;
+  caseStatus: string;
+  filingDate: string | null;
+  decisionDate: string | null;
+  worksiteCity: string | null;
+  worksiteState: string | null;
+  offeredWage: number | null;
+  wageUnit: string | null;
+  source: string | null;
 }
 
 export interface SponsorSearchResponse {
@@ -62,8 +99,11 @@ export interface SponsorSearchResponse {
   pageSize: number;
   totalRecords: number;
   totalPages: number;
+  resultView: "employers" | "filings";
+  totalMatchingEmployers: number;
+  totalMatchingPermCases: number;
   generatedAt: string;
-  results: SponsorSearchItem[];
+  results: Array<SponsorSearchItem | FilingSearchItem>;
 }
 
 export interface EmployerDetail {

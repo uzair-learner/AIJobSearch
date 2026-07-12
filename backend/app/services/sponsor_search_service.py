@@ -5,7 +5,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models import CurrentJob, Employer, H1BEmployerStatistics, Occupation, PermCase
-from app.schemas.search import SearchResultItem, SponsorSearchRequest, SponsorSearchResponse
+from app.schemas.search import (
+    FilingSearchResultItem,
+    MatchingFilingItem,
+    SearchResultItem,
+    SponsorSearchRequest,
+    SponsorSearchResponse,
+)
 from app.services.sponsorship_score_service import SponsorshipScoreService
 from app.utils.salary_normalizer import average_salary
 from app.utils.text_normalizer import normalize_employer_name, normalize_title, normalize_whitespace
@@ -38,7 +44,8 @@ class SponsorSearchService:
             )
         ).unique().all()
 
-        results: list[SearchResultItem] = []
+        employer_results: list[SearchResultItem] = []
+        filing_results: list[FilingSearchResultItem] = []
         normalized_search = normalize_whitespace((request.searchText or "").strip()).lower()
         normalized_employer_search = normalize_employer_name(request.searchText or "") if request.searchText else ""
 
@@ -128,7 +135,8 @@ class SponsorSearchService:
                 explicit_job_denial_count=len(denied_jobs),
                 years_since_recent_activity=years_since_recent,
             )
-            results.append(
+            matching_filings = [self._build_matching_filing(case) for case in self._sort_cases_for_display(perm_cases)]
+            employer_results.append(
                 SearchResultItem(
                     employerId=employer.id,
                     employerName=employer.display_name,
@@ -158,24 +166,86 @@ class SponsorSearchService:
                     sponsorshipScore=score.score,
                     sponsorshipReasons=score.reasons,
                     dataLimitations=score.limitations,
+                    matchingFilings=matching_filings,
                 )
+            )
+            filing_results.extend(
+                FilingSearchResultItem(
+                    employerId=employer.id,
+                    employerName=employer.display_name,
+                    caseNumber=filing.caseNumber,
+                    jobTitle=filing.jobTitle,
+                    socCode=filing.socCode,
+                    occupation=filing.occupation,
+                    fiscalYear=filing.fiscalYear,
+                    caseStatus=filing.caseStatus,
+                    filingDate=filing.filingDate,
+                    decisionDate=filing.decisionDate,
+                    worksiteCity=filing.worksiteCity,
+                    worksiteState=filing.worksiteState,
+                    offeredWage=filing.offeredWage,
+                    wageUnit=filing.wageUnit,
+                    source=filing.source,
+                )
+                for filing in matching_filings
             )
 
         reverse = request.sortDirection == "desc"
         sort_field = SORT_FIELDS.get(request.sortBy, "fiscalYear")
-        results.sort(key=lambda item: getattr(item, self._field_map(sort_field)), reverse=reverse)
+        employer_results.sort(key=lambda item: getattr(item, self._field_map(sort_field)), reverse=reverse)
+        filing_results.sort(key=self._filing_sort_key, reverse=reverse)
 
-        total = len(results)
+        result_set: list[SearchResultItem | FilingSearchResultItem]
+        if request.resultView == "filings":
+            result_set = filing_results
+        else:
+            result_set = employer_results
+
+        total = len(result_set)
         start = (request.page - 1) * request.pageSize
-        page_results = results[start : start + request.pageSize]
+        page_results = result_set[start : start + request.pageSize]
         return SponsorSearchResponse(
             page=request.page,
             pageSize=request.pageSize,
             totalRecords=total,
             totalPages=max(1, (total + request.pageSize - 1) // request.pageSize),
+            resultView=request.resultView,
+            totalMatchingEmployers=len(employer_results),
+            totalMatchingPermCases=len(filing_results),
             results=page_results,
             generatedAt=datetime.utcnow(),
         )
+
+    def _build_matching_filing(self, case: PermCase) -> MatchingFilingItem:
+        return MatchingFilingItem(
+            caseNumber=case.case_number,
+            jobTitle=case.job_title,
+            socCode=case.occupation.soc_code if case.occupation else case.original_soc_code,
+            occupation=case.occupation.soc_title if case.occupation else case.original_soc_title,
+            fiscalYear=case.fiscal_year,
+            caseStatus=case.case_status,
+            filingDate=case.filing_date.isoformat() if case.filing_date else None,
+            decisionDate=case.decision_date.isoformat() if case.decision_date else None,
+            worksiteCity=case.worksite_city,
+            worksiteState=case.worksite_state,
+            offeredWage=average_salary(case.offered_wage_from, case.offered_wage_to),
+            wageUnit=case.wage_unit,
+            source=case.source_file or case.source_url,
+        )
+
+    def _sort_cases_for_display(self, cases: list[PermCase]) -> list[PermCase]:
+        return sorted(
+            cases,
+            key=lambda case: (
+                case.fiscal_year,
+                case.filing_date.isoformat() if case.filing_date else "",
+                case.case_number,
+            ),
+            reverse=True,
+        )
+
+    def _filing_sort_key(self, item: FilingSearchResultItem) -> tuple:
+        return (item.fiscalYear, item.filingDate or "", item.employerName, item.caseNumber)
 
     def _matches_employer(self, employer: Employer, normalized_search: str, normalized_employer_search: str) -> bool:
         if not normalized_search:
