@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import FiscalYearSelect from "./FiscalYearSelect";
 import ProfessionSelect from "./ProfessionSelect";
@@ -11,6 +12,8 @@ type SearchFormProps = {
   states: string[];
   caseStatuses: string[];
   onSubmit: (values: SponsorSearchRequest) => void;
+  onClear: () => void;
+  clearSignal: number;
 };
 
 export default function SearchForm({
@@ -20,10 +23,15 @@ export default function SearchForm({
   states,
   caseStatuses,
   onSubmit,
+  onClear,
+  clearSignal,
 }: SearchFormProps) {
-  const { register, handleSubmit, setValue, watch } = useForm<SponsorSearchRequest>({
+  const { register, handleSubmit, setValue, watch, reset } = useForm<SponsorSearchRequest>({
     defaultValues,
   });
+  useEffect(() => {
+    reset(defaultValues);
+  }, [clearSignal, defaultValues, reset]);
 
   return (
     <form className="search-form panel" onSubmit={handleSubmit(onSubmit)}>
@@ -119,6 +127,16 @@ export default function SearchForm({
 
       <div className="button-row">
         <button type="submit">Search sponsors</button>
+        <button
+          type="button"
+          className="secondary"
+          onClick={() => {
+            reset(defaultValues);
+            onClear();
+          }}
+        >
+          Clear Filters
+        </button>
       </div>
     </form>
   );

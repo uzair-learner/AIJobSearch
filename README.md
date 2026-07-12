@@ -208,6 +208,100 @@ cd backend
 pytest
 ```
 
+Frontend:
+
+```bash
+cd frontend
+npm install
+npm run typecheck
+npm run test
+npm run build
+```
+
+## Troubleshooting
+
+### Exact SQLite database location
+
+By default, the local SQLite database is created at:
+
+```powershell
+backend\visa_sponsor_jobs.db
+```
+
+The application now resolves that path from the backend project directory, so starting FastAPI from the repository root or from `backend\` uses the same database file.
+
+### Why relative SQLite paths can create multiple databases
+
+A URL like `sqlite:///./visa_sponsor_jobs.db` depends on the current working directory. If you start the API from different folders, SQLite may create multiple files with the same name in different places. This repository now uses a stable backend-relative path by default.
+
+### How to reset the local demo database
+
+PowerShell:
+
+```powershell
+Remove-Item .\backend\visa_sponsor_jobs.db -Force
+```
+
+Then restart the backend to recreate the schema and seed the synthetic demo data.
+
+### How to run demo seeding manually
+
+PowerShell:
+
+```powershell
+Set-Location .\backend
+.venv\Scripts\python.exe -c "from app.database import SessionLocal; from app.demo_seed import seed_demo_data; db = SessionLocal(); seed_demo_data(db); db.close()"
+```
+
+### How to inspect database counts
+
+PowerShell:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/api/health
+Invoke-RestMethod http://127.0.0.1:8000/api/health/database-summary
+```
+
+### How to call `/api/health/database-summary`
+
+PowerShell:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/api/health/database-summary | ConvertTo-Json -Depth 5
+```
+
+### How to run backend tests
+
+PowerShell:
+
+```powershell
+Set-Location .\backend
+python -m pytest
+```
+
+### How to run frontend tests
+
+PowerShell:
+
+```powershell
+Set-Location .\frontend
+npm install
+npm run typecheck
+npm run test
+```
+
+### How to import real Department of Labor PERM data
+
+1. Start the backend.
+2. Open the Imports page in the frontend or use the admin import endpoints.
+3. Upload an official OFLC PERM disclosure CSV or Excel file.
+4. Verify the import in `/api/admin/imports` and `/api/health/database-summary`.
+
+### Demo-data disclaimer
+
+- `Northwind Cloud`, `Contoso Analytics`, and `Fabrikam Security` are synthetic demonstration employers.
+- Real sponsor results appear only after an official Department of Labor PERM disclosure file is imported.
+
 ## Starting scheduled imports
 
 Scheduled refresh behavior is scaffolded through configuration and service layout. The current codebase exposes refresh timing metadata and import infrastructure, and is ready for APScheduler or Celery job registration in a follow-up step.

@@ -11,8 +11,8 @@ class SponsorSearchRequest(BaseModel):
     states: list[str] = Field(default_factory=list)
     caseStatuses: list[str] = Field(default_factory=list)
     minimumFilings: int = 1
-    evidenceType: str = "all"
-    dateRecency: str = "all"
+    evidenceType: str | None = "all"
+    dateRecency: str | None = "all"
     page: int = 1
     pageSize: int = 25
     sortBy: str = "recent_filings"
@@ -20,6 +20,13 @@ class SponsorSearchRequest(BaseModel):
 
     @model_validator(mode="after")
     def ensure_any_filter(self) -> "SponsorSearchRequest":
+        self.searchText = self.searchText.strip() if self.searchText else None
+        self.fiscalYears = [year for year in self.fiscalYears if year is not None]
+        self.professionIds = [profession_id for profession_id in self.professionIds if profession_id is not None]
+        self.states = [state for state in self.states if state]
+        self.caseStatuses = [status for status in self.caseStatuses if status]
+        self.evidenceType = self.evidenceType or "all"
+        self.dateRecency = self.dateRecency or "all"
         active = any(
             [
                 bool(self.searchText and self.searchText.strip()),
@@ -33,7 +40,7 @@ class SponsorSearchRequest(BaseModel):
             ]
         )
         if not active:
-            raise ValueError("At least one filter must be provided.")
+            raise ValueError("At least one search condition is required.")
         return self
 
 

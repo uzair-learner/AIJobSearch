@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import CurrentJob, DataImport, Employer, PermCase
 from app.services.current_job_service import CurrentJobService
+from app.services.database_summary_service import get_database_summary
 
 router = APIRouter(tags=["health"])
 current_job_service = CurrentJobService()
@@ -28,3 +29,8 @@ def health(db: Session = Depends(get_db)) -> dict:
         },
         "nextCurrentJobsRefresh": current_job_service.next_refresh_at(180),
     }
+
+
+@router.get("/health/database-summary")
+def database_summary(db: Session = Depends(get_db)) -> dict:
+    return get_database_summary(db)

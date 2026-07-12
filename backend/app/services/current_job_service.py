@@ -27,6 +27,7 @@ NEGATIVE_PHRASES = [
     "will not sponsor",
     "cannot sponsor",
     "no current or future sponsorship",
+    "does not provide sponsorship now or in the future",
     "must be authorized without sponsorship",
     "must not require sponsorship now or in the future",
     "u.s. citizens only",

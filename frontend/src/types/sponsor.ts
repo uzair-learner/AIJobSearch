@@ -13,6 +13,19 @@ export interface SponsorSearchRequest {
   sortDirection: "asc" | "desc";
 }
 
+export interface DatabaseSummary {
+  databaseType: string;
+  demoSeedEnabled: boolean;
+  employers: number;
+  occupations: number;
+  permCases: number;
+  currentJobs: number;
+  imports: number;
+  availableFiscalYears: number[];
+  availableStates: string[];
+  availableOccupations: Array<{ socCode: string; socTitle: string }>;
+}
+
 export interface SponsorSearchItem {
   employerId: number;
   employerName: string;

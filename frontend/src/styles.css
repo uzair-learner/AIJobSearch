@@ -232,6 +232,10 @@ select {
   background: var(--accent-soft);
 }
 
+.chip-button {
+  border: 0;
+}
+
 .badge.success {
   background: #dcefdc;
 }

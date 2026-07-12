@@ -1,14 +1,14 @@
 from collections import Counter, defaultdict
 from datetime import datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models import CurrentJob, Employer, H1BEmployerStatistics, Occupation, PermCase
 from app.schemas.search import SearchResultItem, SponsorSearchRequest, SponsorSearchResponse
 from app.services.sponsorship_score_service import SponsorshipScoreService
 from app.utils.salary_normalizer import average_salary
-from app.utils.text_normalizer import normalize_title
+from app.utils.text_normalizer import normalize_employer_name, normalize_title, normalize_whitespace
 
 
 SORT_FIELDS = {
@@ -29,33 +29,21 @@ class SponsorSearchService:
         self.score_service = SponsorshipScoreService()
 
     def search(self, db: Session, request: SponsorSearchRequest) -> SponsorSearchResponse:
-        query = (
-            select(Employer)
-            .options(
+        employers = db.scalars(
+            select(Employer).options(
                 selectinload(Employer.perm_cases).selectinload(PermCase.occupation),
                 selectinload(Employer.current_jobs),
                 selectinload(Employer.h1b_stats),
                 selectinload(Employer.aliases),
             )
-            .join(PermCase)
-            .distinct()
-        )
-
-        if request.searchText:
-            term = request.searchText.lower()
-            query = query.outerjoin(PermCase.occupation).where(
-                Employer.display_name.ilike(f"%{term}%")
-                | Employer.normalized_name.ilike(f"%{term.upper()}%")
-                | PermCase.job_title.ilike(f"%{term}%")
-                | PermCase.worksite_city.ilike(f"%{term}%")
-                | PermCase.worksite_state.ilike(f"%{term}%")
-                | Occupation.soc_title.ilike(f"%{term}%")
-                | Occupation.soc_code.ilike(f"%{term}%")
-            )
-        employers = db.scalars(query).unique().all()
+        ).unique().all()
 
         results: list[SearchResultItem] = []
+        normalized_search = normalize_whitespace((request.searchText or "").strip()).lower()
+        normalized_employer_search = normalize_employer_name(request.searchText or "") if request.searchText else ""
+
         for employer in employers:
+            employer_name_matched = self._matches_employer(employer, normalized_search, normalized_employer_search)
             perm_cases = list(employer.perm_cases)
             if request.fiscalYears:
                 perm_cases = [case for case in perm_cases if case.fiscal_year in request.fiscalYears]
@@ -69,6 +57,12 @@ class SponsorSearchService:
                 max_year = max((case.fiscal_year for case in employer.perm_cases), default=None)
                 if max_year is not None:
                     perm_cases = [case for case in perm_cases if case.fiscal_year >= max_year - 2]
+            if normalized_search:
+                if employer_name_matched:
+                    matching_cases = perm_cases
+                else:
+                    matching_cases = [case for case in perm_cases if self._matches_case(case, normalized_search)]
+                perm_cases = matching_cases
             if not perm_cases:
                 continue
 
@@ -182,6 +176,34 @@ class SponsorSearchService:
             results=page_results,
             generatedAt=datetime.utcnow(),
         )
+
+    def _matches_employer(self, employer: Employer, normalized_search: str, normalized_employer_search: str) -> bool:
+        if not normalized_search:
+            return False
+        haystacks = [
+            normalize_whitespace(employer.display_name).lower(),
+            employer.normalized_name.lower(),
+            normalize_whitespace(employer.original_name).lower(),
+        ]
+        if any(normalized_search in value or normalized_employer_search in value for value in haystacks):
+            return True
+        for alias in employer.aliases:
+            if normalized_search in alias.alias_name.lower() or normalized_employer_search in alias.normalized_alias.lower():
+                return True
+        return False
+
+    def _matches_case(self, case: PermCase, normalized_search: str) -> bool:
+        parts = [
+            case.job_title or "",
+            case.worksite_city or "",
+            case.worksite_state or "",
+            case.original_soc_code or "",
+            case.original_soc_title or "",
+            case.occupation.soc_code if case.occupation else "",
+            case.occupation.soc_title if case.occupation else "",
+        ]
+        searchable = " ".join(normalize_whitespace(part).lower() for part in parts if part)
+        return normalized_search in searchable
 
     def _field_map(self, sort_field: str) -> str:
         mapping = {
